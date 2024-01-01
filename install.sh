@@ -48,59 +48,42 @@ confirm_proceed() {
 
 # Create EFI partition
 create_efi_partition() {
-    local efi_size efi_partition_number
     echo "Please specify the size of the EFI system partition (e.g., 512M): "
     read efi_size
 
-    echo "Please specify the partition number for the EFI system partition (e.g., 1): "
-    read efi_partition_number
-
-    # Display confirmation message before creating partition
-    echo "The following partitions will be created:"
-    echo "1. EFI system partition: /dev/${disk}1 (Size: $efi_size)"
-    echo "2. Root partition: /dev/${disk}2 (Remaining space)"
-
-    confirm_proceed
+    if [[ "$disk" == nvme* ]]; then
+        efi_partition_device="/dev/${disk}p1"
+    else
+        efi_partition_device="/dev/${disk}1"
+    fi
 
     parted -s "/dev/$disk" mklabel gpt
     parted -s "/dev/$disk" mkpart primary fat32 1M "$efi_size"
     parted -s "/dev/$disk" mkpart primary btrfs "$efi_size" 100%
 
-    mkfs.vfat -F 32 "/dev/${disk}${efi_partition_number}"
-}
-
-# Create /home partition on a separate disk
-create_home_partition() {
-    local home_disk home_partition_number
-    echo "Available disks: $available_disks"
-    read -p "Please select a disk to use as a separate disk: " home_disk
-    echo "Please specify the partition number for the /home partition on the separate disk (e.g., 1): "
-    read home_partition_number
-
-    # Display confirmation message before creating partition
-    echo "The following partition will be created:"
-    echo "3. /home partition: /dev/${home_disk}1"
-
-    confirm_proceed
-
-    mkfs.btrfs -f "/dev/${home_disk}${home_partition_number}"
-    echo "/home partition created on separate disk."
+    mkfs.vfat -F 32 "$efi_partition_device"
 }
 
 # Mount partitions
 mount_partitions() {
     echo "Mounting root partition..."
     mkdir -p /mnt/gentoo
-    mount "/dev/${disk}2" /mnt/gentoo
+    root_partition="/dev/${disk}${root_partition_suffix}"
+    mount "$root_partition" /mnt/gentoo
 
     echo "Mounting EFI system partition..."
     mkdir -p /mnt/gentoo/efi
-    mount "/dev/${disk}${efi_partition_number}" /mnt/gentoo/efi
+    mount "$efi_partition_device" /mnt/gentoo/efi
 
     if [ "$create_home_on_separate_disk" == "y" ]; then
         echo "Mounting home partition..."
         mkdir -p /mnt/gentoo/home
-        mount "/dev/${home_disk}${home_partition_number}" /mnt/gentoo/home
+        if [ "$disk_type" == "nvme" ]; then
+            home_partition="/dev/${home_disk}n${home_partition_number}p${home_partition_suffix}"
+        else
+            home_partition="/dev/${home_disk}${home_partition_number}${home_partition_suffix}"
+        fi
+        mount "$home_partition" /mnt/gentoo/home
     fi
 
     echo "Mounting completed."
@@ -137,9 +120,6 @@ merge_make_conf() {
     # Remove temporary file
     rm merged_make.conf
 }
-
-# Pre-installation
-pre_install
 
 # Mode selection
 select_mode
