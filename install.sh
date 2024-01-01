@@ -109,6 +109,34 @@ mount_partitions() {
 chroot_script() {
     chroot /mnt/gentoo /bin/bash /chroot_script.sh
 }
+
+
+merge_make_conf() {
+    local base_conf="make.conf.base"
+    local mode_conf="make.conf.${mode}"
+
+    # ベースの make.conf が存在するか確認
+    if [ ! -e "$base_conf" ]; then
+        echo "エラー: $base_conf が見つかりません。"
+        exit 1
+    fi
+
+    # モードの make.conf が存在するか確認
+    if [ ! -e "$mode_conf" ]; then
+        echo "エラー: $mode_conf が見つかりません。"
+        exit 1
+    fi
+
+    # マージした make.conf を作成
+    cat "$base_conf" "$mode_conf" > merged_make.conf
+
+    # /mnt/gentoo にコピー
+    cp merged_make.conf /mnt/gentoo/etc/portage/make.conf
+
+    # 一時ファイルを削除
+    rm merged_make.conf
+}
+
 # インストールの前準備
 pre_install
 
@@ -129,6 +157,9 @@ fi
 
 # パーティションのマウント
 mount_partitions
+
+# make.conf を /mnt/gentoo にコピー
+merge_make_conf
 
 # chroot 内のスクリプトを実行
 chroot_script

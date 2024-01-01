@@ -1,0 +1,4 @@
+USE="-X"
+
+GRUB_PLATFORMS="efi-64"
+　

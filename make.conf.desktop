@@ -1,0 +1,8 @@
+USE="X cjk ibus"
+
+L10N="ja en"
+LINGUAS="${L10N}"
+PLOCALES="${L10N}"
+
+GRUB_PLATFORMS="efi-64"
+VIDEO_CARDS="nvidia"
