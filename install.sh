@@ -2,9 +2,9 @@
 
 set -e
 
-# モード選択
+# Mode selection
 select_mode() {
-    PS3="スクリプトモードを選択してください (1: デスクトップ, 2: サーバ): "
+    PS3="Please select script mode (1: Desktop, 2: Server): "
     select mode in "desktop" "server"; do
         case $mode in
             desktop)
@@ -16,46 +16,51 @@ select_mode() {
                 break
                 ;;
             *)
-                echo "無効な選択です。再度選択してください。"
+                echo "Invalid selection. Please select again."
                 ;;
         esac
     done
 }
 
-# ディスク選択
+# Disk selection
 select_disk() {
     local available_disks
     available_disks=$(lsblk -d -o NAME,SIZE -n | awk '{print $1}')
-    PS3="パーティションを切るディスクを選択してください: "
+    PS3="Please select a disk to partition: "
     select disk in $available_disks; do
         if [ -n "$disk" ]; then
-            echo "選択されたディスク: $disk"
+            echo "Selected disk: $disk"
             break
         else
-            echo "無効な選択です。再度選択してください。"
+            echo "Invalid selection. Please select again."
         fi
     done
 }
 
-# EFIパーティションの作成
-create_efi_partition() {
-    local efi_size efi_partition_number
-    echo "EFIシステムパーティションのサイズを指定してください (例: 512M): "
-    read efi_size
-
-    echo "EFIシステムパーティションのパーティション番号を指定してください (例: 1): "
-    read efi_partition_number
-
-    # パーティションの作成前に確認メッセージを表示
-    echo "以下のパーティションを作成します:"
-    echo "1. EFIシステムパーティション: /dev/${disk}1 (サイズ: $efi_size)"
-    echo "2. ルートパーティション: /dev/${disk}2 (残りの領域)"
-
-    read -p "本当に続行しますか？ (y/n): " confirmation
+# Confirmation before proceeding
+confirm_proceed() {
+    read -p "Do you want to proceed? (y/n): " confirmation
     if [ "$confirmation" != "y" ]; then
-        echo "作業がキャンセルされました。"
+        echo "Operation cancelled."
         exit 1
     fi
+}
+
+# Create EFI partition
+create_efi_partition() {
+    local efi_size efi_partition_number
+    echo "Please specify the size of the EFI system partition (e.g., 512M): "
+    read efi_size
+
+    echo "Please specify the partition number for the EFI system partition (e.g., 1): "
+    read efi_partition_number
+
+    # Display confirmation message before creating partition
+    echo "The following partitions will be created:"
+    echo "1. EFI system partition: /dev/${disk}1 (Size: $efi_size)"
+    echo "2. Root partition: /dev/${disk}2 (Remaining space)"
+
+    confirm_proceed
 
     parted -s "/dev/$disk" mklabel gpt
     parted -s "/dev/$disk" mkpart primary fat32 1M "$efi_size"
@@ -64,114 +69,110 @@ create_efi_partition() {
     mkfs.vfat -F 32 "/dev/${disk}${efi_partition_number}"
 }
 
-# 別ディスクに /home パーティションを作成
+# Create /home partition on a separate disk
 create_home_partition() {
     local home_disk home_partition_number
-    echo "利用可能なディスクリスト: $available_disks"
-    read -p "別ディスクとして使用するディスクを選択してください: " home_disk
-    echo "別ディスクの /home パーティションのパーティション番号を指定してください (例: 1): "
+    echo "Available disks: $available_disks"
+    read -p "Please select a disk to use as a separate disk: " home_disk
+    echo "Please specify the partition number for the /home partition on the separate disk (e.g., 1): "
     read home_partition_number
 
-    # パーティションの作成前に確認メッセージを表示
-    echo "以下のパーティションを作成します:"
-    echo "3. /home パーティション: /dev/${home_disk}1"
+    # Display confirmation message before creating partition
+    echo "The following partition will be created:"
+    echo "3. /home partition: /dev/${home_disk}1"
 
-    read -p "本当に続行しますか？ (y/n): " confirmation
-    if [ "$confirmation" != "y" ]; then
-        echo "作業がキャンセルされました。"
-        exit 1
-    fi
+    confirm_proceed
 
     mkfs.btrfs -f "/dev/${home_disk}${home_partition_number}"
-    echo "別ディスクに /home パーティションを作成しました。"
+    echo "/home partition created on separate disk."
 }
 
-# パーティションのマウント
+# Mount partitions
 mount_partitions() {
-    echo "ルートパーティションをマウントしています..."
+    echo "Mounting root partition..."
     mkdir -p /mnt/gentoo
     mount "/dev/${disk}2" /mnt/gentoo
 
-    echo "EFIシステムパーティションをマウントしています..."
+    echo "Mounting EFI system partition..."
     mkdir -p /mnt/gentoo/efi
     mount "/dev/${disk}${efi_partition_number}" /mnt/gentoo/efi
 
     if [ "$create_home_on_separate_disk" == "y" ]; then
-        echo "ホームパーティションをマウントしています..."
+        echo "Mounting home partition..."
         mkdir -p /mnt/gentoo/home
         mount "/dev/${home_disk}${home_partition_number}" /mnt/gentoo/home
     fi
 
-    echo "マウントが完了しました。"
+    echo "Mounting completed."
 }
 
-# chroot 内のスクリプトを実行
+# Execute script in chroot
 chroot_script() {
     chroot /mnt/gentoo /bin/bash /chroot_script.sh
 }
 
-
+# Merge make.conf
 merge_make_conf() {
     local base_conf="make.conf.base"
     local mode_conf="make.conf.${mode}"
 
-    # ベースの make.conf が存在するか確認
+    # Check if base make.conf exists
     if [ ! -e "$base_conf" ]; then
-        echo "エラー: $base_conf が見つかりません。"
+        echo "Error: $base_conf not found."
         exit 1
     fi
 
-    # モードの make.conf が存在するか確認
+    # Check if mode make.conf exists
     if [ ! -e "$mode_conf" ]; then
-        echo "エラー: $mode_conf が見つかりません。"
+        echo "Error: $mode_conf not found."
         exit 1
     fi
 
-    # マージした make.conf を作成
+    # Create merged make.conf
     cat "$base_conf" "$mode_conf" > merged_make.conf
 
-    # /mnt/gentoo にコピー
+    # Copy to /mnt/gentoo
     cp merged_make.conf /mnt/gentoo/etc/portage/make.conf
 
-    # 一時ファイルを削除
+    # Remove temporary file
     rm merged_make.conf
 }
 
-# インストールの前準備
+# Pre-installation
 pre_install
 
-# モード選択
+# Mode selection
 select_mode
 
-# ディスク選択
+# Disk selection
 select_disk
 
-# EFIパーティションの作成
+# Create EFI partition
 create_efi_partition
 
-# 別ディスクに /home パーティションを作成するか確認
-read -p "別ディスクに /home パーティションを作成しますか？ (y/n): " create_home_on_separate_disk
+# Check if /home partition should be created on a separate disk
+read -p "Do you want to create a /home partition on a separate disk? (y/n): " create_home_on_separate_disk
 if [ "$create_home_on_separate_disk" == "y" ]; then
     create_home_partition
 fi
 
-# パーティションのマウント
+# Mount partitions
 mount_partitions
 
-# make.conf を /mnt/gentoo にコピー
+# Copy make.conf to /mnt/gentoo
 merge_make_conf
 
-# chroot 内のスクリプトを実行
+# Execute script in chroot
 chroot_script
 
-# インストールの後処理
-echo "インストールが完了しました。"
+# Post-installation
+echo "Installation completed."
 
-# ユーザにrebootの選択を促す
-read -p "インストールが完了しました。再起動しますか？ (y/n): " reboot_choice
+# Prompt user to reboot
+read -p "Installation completed. Do you want to reboot? (y/n): " reboot_choice
 if [ "$reboot_choice" == "y" ]; then
-    echo "システムを再起動しています..."
+    echo "Rebooting system..."
     reboot
 else
-    echo "再起動せずに終了します。"
+    echo "Exiting without rebooting."
 fi
