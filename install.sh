@@ -47,14 +47,10 @@ confirm_proceed() {
     fi
 }
 
-# Create EFI partition
-create_efi_partition() {
-    echo "Please specify the size of the EFI system partition (e.g., 512M): "
-    read efi_size
-
+create_partition() {
     local available_disks
     available_disks=$(lsblk -d -o NAME,SIZE -n | awk '{print $1}')
-    PS3="Please select a disk for EFI: "
+    PS3="Please select a disk"
     select disk in $available_disks; do
         if [ -n "$disk" ]; then
             echo "Selected disk: $disk"
@@ -63,31 +59,22 @@ create_efi_partition() {
             echo "Invalid selection. Please select again."
         fi
     done
+    sgdisk -Z /dev/$disk
+    sgdisk -o /dev/$disk
+    sgdisk -n 1::+1024M -t 1:ef02 /dev/$disk
+    sgdisk -n 2:: -t 2:8300 /dev/$disk
 
-    parted -s "/dev/$disk" mklabel gpt
-    parted -s "/dev/$disk" mkpart primary fat32 1M "$efi_size"
-
-    # Get the partition number of the newly created partition
-    local partition_number
-    partition_number=$(parted -s "/dev/$disk" print | awk '/^ [1-9]+/{print $1}' | tail -n 1)
-
-    # Check if the disk is an NVMe device
-    if [[ $disk == nvme* ]]; then
-        mkfs.vfat -F 32 "/dev/${disk}p${partition_number}"
-    else
-        mkfs.vfat -F 32 "/dev/${disk}${partition_number}"
-    fi
-}
-
-# Create root partition
-create_root_partition() {
-    parted -s "/dev/$disk" mkpart primary btrfs "$efi_size" 100%
     if [[ "$disk" == nvme* ]]; then
-        root_partition="/dev/${disk}p2"
+        mkfs.vfat -F 32 /dev/${disk}p1
+        mkfs.btrfs -f /dev/${disk}p2
+        efi_partition_device = "/dev/${disk}p1"
+        root_partition_device = "/dev/${disk}p2"
     else
-        root_partition="/dev/${disk}2"
+        mkfs.vfat -F 32 /dev/${disk}1
+        mkfs.btrfs -f /dev/${disk}2
+        efi_partition_device = "/dev/${disk}1"
+        root_partition_device = "/dev/${disk}2"
     fi
-    mkfs.btrfs -f "$root_partition"
 }
 
 # Mount partitions
@@ -95,19 +82,14 @@ mount_partitions() {
     echo "Create mount points..."
     mkdir -p /mnt/gentoo
     echo "Mounting root partition..."
-    # TODO パーティション番号を自動で取得する
-    if [[ "$disk" == nvme* ]]; then
-        root_partition="/dev/${disk}p2"
-    else
-        root_partition="/dev/${disk}2"
-    fi
-    mount "$root_partition" /mnt/gentoo
+    mount "$root_partition_device" /mnt/gentoo
 
     echo "Creating mount points for EFI system partition"
     mkdir -p /mnt/gentoo/efi
     echo "Mounting EFI system partition..."
     mount "$efi_partition_device" /mnt/gentoo/efi
 
+    # これはどうする？
     if [ "$create_home_on_separate_disk" == "y" ]; then
         echo "Creating mount points for home partition"
         mkdir -p /mnt/gentoo/home
