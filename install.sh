@@ -154,11 +154,7 @@ select_mode
 # Disk selection
 select_disk
 
-# Create EFI partition
-create_efi_partition
-
-# Create ROOT partition
-create_root_partition
+create_partition
 
 # Check if /home partition should be created on a separate disk
 read -p "Do you want to create a /home partition on a separate disk? (y/n): " create_home_on_separate_disk
