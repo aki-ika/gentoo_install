@@ -68,13 +68,13 @@ create_partition() {
     if [[ "$disk" == nvme* ]]; then
         mkfs.vfat -F 32 /dev/${disk}p1
         mkfs.btrfs -f /dev/${disk}p2
-        efi_partition_device = "/dev/${disk}p1"
-        root_partition_device = "/dev/${disk}p2"
+        efi_partition_device="/dev/${disk}p1"
+        root_partition_device="/dev/${disk}p2"
     else
         mkfs.vfat -F 32 /dev/${disk}1
         mkfs.btrfs -f /dev/${disk}2
-        efi_partition_device = "/dev/${disk}1"
-        root_partition_device = "/dev/${disk}2"
+        efi_partition_device="/dev/${disk}1"
+        root_partition_device="/dev/${disk}2"
     fi
 }
 
