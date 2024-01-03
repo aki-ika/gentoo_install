@@ -81,8 +81,6 @@ create_efi_partition() {
 
 # Create root partition
 create_root_partition() {
-    echo "Please specify the size of the root partition (e.g., 20G, or 100% to use all remaining space): "
-    read root_size
     parted -s "/dev/$disk" mkpart primary btrfs "$efi_size" 100%
 }
 
@@ -91,10 +89,11 @@ mount_partitions() {
     echo "Create mount points..."
     mkdir -p /mnt/gentoo
     echo "Mounting root partition..."
+    # TODO パーティション番号を自動で取得する
     if [[ "$disk" == nvme* ]]; then
-        root_partition="/dev/${disk}p${root_partition_suffix}"
+        root_partition="/dev/${disk}p2"
     else
-        root_partition="/dev/${disk}${root_partition_suffix}"
+        root_partition="/dev/${disk}2"
     fi
     mount "$root_partition" /mnt/gentoo
 
