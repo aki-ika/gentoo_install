@@ -104,6 +104,7 @@ mount_partitions() {
     fi
 
     echo "Mounting completed."
+    mv './chroot_script.sh' '/mnt/gentoo/chroot_script.sh'
 }
 
 # Execute script in chroot
@@ -117,13 +118,13 @@ chroot_script() {
 }
 
 download_stage3_tarball() {
+    cd /mnt/gentoo
     if [ "$mode" == "server" ]; then
         wget -O index.html https://ftp.jaist.ac.jp/pub/Linux/Gentoo/releases/amd64/autobuilds/current-stage3-amd64-nomultilib-systemd-mergedusr/
 
         tarball_name=$(grep -o 'stage3-amd64-nomultilib-systemd-mergedusr-[0-9]\+T[0-9]\+Z.tar.xz' index.html | grep -v '.asc' | tail -n 1)
         rm index.html
         wget https://ftp.jaist.ac.jp/pub/Linux/Gentoo/releases/amd64/autobuilds/current-stage3-amd64-nomultilib-systemd-mergedusr/$tarball_name
-        cd /mnt/gentoo
         tar xpvf $tarball_name --xattrs-include='*.*' --numeric-owner
         rm $tarball_name
     elif [ "$mode" == "desktop" ]; then
@@ -137,8 +138,8 @@ download_stage3_tarball() {
 
 # Merge make.conf
 merge_make_conf() {
-    local base_conf="make.conf.base"
-    local mode_conf="make.conf.${mode}"
+    local base_conf="~/gentoo_install/make.conf.base"
+    local mode_conf="~/gentoo_install/make.conf.${mode}"
 
     # Check if base make.conf exists
     if [ ! -e "$base_conf" ]; then
