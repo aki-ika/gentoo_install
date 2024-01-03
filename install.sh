@@ -2,34 +2,6 @@
 
 set -e
 
-# Network setup
-detect_network() {
-    # Get network interfaces
-    local interfaces
-    interfaces=$(ip -o -4 addr show | awk -F ' : ' '{print $2}' | sort | uniq)
-
-    # Let user select network interface
-    PS3="Please select a network interface: "
-    select net_interface in $interfaces; do
-        if [ -n "$net_interface" ]; then
-            echo "Selected network interface: $net_interface"
-            break
-        else
-            echo "Invalid selection. Please select again."
-        fi
-    done
-
-    # Setup network
-    net-setup $net_interface
-
-    # Test network connection
-    if ping -c 3 www.gentoo.org; then
-        echo "Network connection is working."
-    else
-        echo "Network connection is not working. Please check your network settings."
-        exit 1
-    fi
-}
 
 # Mode selection
 select_mode() {
@@ -80,12 +52,12 @@ create_efi_partition() {
     echo "Please specify the size of the EFI system partition (e.g., 512M): "
     read efi_size
 
-    local available_partitions
-    available_partitions=$(lsblk -d -o NAME,SIZE -n | awk '{print $1}')
-    PS3="Please select a partition for EFI: "
-    select efi_partition_device in $available_partitions; do
-        if [ -n "$efi_partition_device" ]; then
-            echo "Selected EFI partition: $efi_partition_device"
+    local available_disks
+    available_disks=$(lsblk -d -o NAME,SIZE -n | awk '{print $1}')
+    PS3="Please select a disk for EFI: "
+    select disk in $available_disks; do
+        if [ -n "$disk" ]; then
+            echo "Selected disk: $disk"
             break
         else
             echo "Invalid selection. Please select again."
@@ -95,7 +67,16 @@ create_efi_partition() {
     parted -s "/dev/$disk" mklabel gpt
     parted -s "/dev/$disk" mkpart primary fat32 1M "$efi_size"
 
-    mkfs.vfat -F 32 "/dev/$efi_partition_device"
+    # Get the partition number of the newly created partition
+    local partition_number
+    partition_number=$(parted -s "/dev/$disk" print | awk '/^ [1-9]+/{print $1}' | tail -n 1)
+
+    # Check if the disk is an NVMe device
+    if [[ $disk == nvme* ]]; then
+        mkfs.vfat -F 32 "/dev/${disk}p${partition_number}"
+    else
+        mkfs.vfat -F 32 "/dev/${disk}${partition_number}"
+    fi
 }
 
 # Create root partition
@@ -178,9 +159,6 @@ umount_partitions() {
     umount -R /mnt/gentoo
     echo "Unmounting completed."
 }
-
-# Connect to network
-detect_network
 
 # Mode selection
 select_mode
