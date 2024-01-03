@@ -116,6 +116,20 @@ chroot_script() {
     rm /mnt/gentoo/chroot_script.sh
 }
 
+download_stage3_tarball() {
+    if [ "$mode" == "server" ]; then
+        wget -O index.html https://ftp.jaist.ac.jp/pub/Linux/Gentoo/releases/amd64/autobuilds/current-stage3-amd64-nomultilib-systemd-mergedusr/
+
+        tarball_name=$(grep -o 'stage3-amd64-nomultilib-systemd-mergedusr-[0-9]\+T[0-9]\+Z.tar.xz' index.html | head -n 1)
+        rm index.html
+        wget https://ftp.jaist.ac.jp/pub/Linux/Gentoo/releases/amd64/autobuilds/current-stage3-amd64-nomultilib-systemd-mergedusr/$tarball_name
+        tar xpvf $tarball_name --xattrs-include='*.*' --numeric-owner
+        rm $tarball_name
+    elif [ "$mode" == "desktop" ]; then
+
+    fi
+}
+
 # Merge make.conf
 merge_make_conf() {
     local base_conf="make.conf.base"
@@ -165,6 +179,8 @@ fi
 
 # Mount partitions
 mount_partitions
+
+download_stage3_tarball
 
 # Copy make.conf to /mnt/gentoo
 merge_make_conf
