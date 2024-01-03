@@ -82,6 +82,12 @@ create_efi_partition() {
 # Create root partition
 create_root_partition() {
     parted -s "/dev/$disk" mkpart primary btrfs "$efi_size" 100%
+    if [[ "$disk" == nvme* ]]; then
+        root_partition="/dev/${disk}p2"
+    else
+        root_partition="/dev/${disk}2"
+    fi
+    mkfs.btrfs -f "$root_partition"
 }
 
 # Mount partitions
