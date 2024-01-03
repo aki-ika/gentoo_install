@@ -1,7 +1,8 @@
 #!/bin/bash
 
 set -e
-
+efi_partition_device=""
+root_partition_device=""
 
 # Mode selection
 select_mode() {
