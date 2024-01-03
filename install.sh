@@ -81,9 +81,10 @@ create_efi_partition() {
 
 # Create root partition
 create_root_partition() {
+    echo "Please specify the size of the root partition (e.g., 20G, or 100% to use all remaining space): "
+    read root_size
     parted -s "/dev/$disk" mkpart primary btrfs "$efi_size" 100%
 }
-
 
 # Mount partitions
 mount_partitions() {
