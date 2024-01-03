@@ -131,7 +131,7 @@ download_stage3_tarball() {
     else
         echo "Invalid mode."
         exit 1
-
+    fi
 }
 
 # Merge make.conf
