@@ -126,8 +126,12 @@ download_stage3_tarball() {
         tar xpvf $tarball_name --xattrs-include='*.*' --numeric-owner
         rm $tarball_name
     elif [ "$mode" == "desktop" ]; then
+        echo "Not implemented yet."
+        exit 1
+    else
+        echo "Invalid mode."
+        exit 1
 
-    fi
 }
 
 # Merge make.conf
