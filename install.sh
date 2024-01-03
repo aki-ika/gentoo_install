@@ -1,205 +1,179 @@
 #!/bin/bash
 
 set -e
-efi_partition_device=""
-root_partition_device=""
 
-# Mode selection
-select_mode() {
-    PS3="Please select script mode (1: Desktop, 2: Server): "
-    select mode in "desktop" "server"; do
-        case $mode in
-            desktop)
-                suffix="desktop-systemd-mergedusr"
-                break
-                ;;
-            server)
-                suffix="systemd-mergeduser"
-                break
-                ;;
-            *)
-                echo "Invalid selection. Please select again."
-                ;;
-        esac
-    done
-}
+work_dir="mnt/gentoo"
 
-# Disk selection
-select_disk() {
-    local available_disks
-    available_disks=$(lsblk -d -o NAME,SIZE -n | awk '{print $1}')
-    PS3="Please select a disk to partition: "
-    select disk in $available_disks; do
-        if [ -n "$disk" ]; then
-            echo "Selected disk: $disk"
+#インストールするマシンがサーバかデスクトップかを選択
+select_target_machine(){
+    PS3="インストールするマシンを選択してください: "
+    select mode in "server" "desktop"; do
+        if [ -n "$mode" ]; then
             break
         else
-            echo "Invalid selection. Please select again."
+            echo "無効な選択です。再度選択してください。"
         fi
     done
 }
 
-# Confirmation before proceeding
-confirm_proceed() {
-    read -p "Do you want to proceed? (y/n): " confirmation
-    if [ "$confirmation" != "y" ]; then
-        echo "Operation cancelled."
+select_target_disk() {
+    lsblk
+    read -p "インストールするディスクを入力してください: " selected_disk
+    if [ -n "$selected_disk" ]; then
+        echo "選択されたディスク: $selected_disk"
+    else
+        echo "無効な選択です。再度選択してください。"
+    fi
+    # /homeを別ディスクにするかの確認
+    read -p "ホームを別ディスクにしますか？:y/n " selected_home_divide
+    if [ "$selected_home_divide" = "y" ]; then
+        read -p "インストールするディスクを入力してください: " selected_home_disk
+        if [ -n "$selected_home_disk" ]; then
+            echo "選択されたディスク: $selected_home_disk"
+        else
+            echo "無効な選択です。再度選択してください。"
+        fi
+    else
+        echo "ホームを別ディスクにしません。"
+    fi
+}
+
+# パーティションを作成する
+consent_disk_partition() {
+    # 作成するディスクがあってるかの確認
+    read -p "次のディスクはフォーマットされます。よろしいですか？: $selected_disk y/n" selected_disk_confirm
+    if [ "$selected_disk_confirm" = "y" ]; then
+        # ホームを別ディスクにしてる場合、それもフォーマットするかの確認
+        if [ "$selected_home_divide" = "y" ]; then
+            read -p "次のディスクもフォーマットされます。よろしいですか？: $selected_home_disk y/n" selected_home_disk_confirm
+            if [ "$selected_home_disk_confirm" = "y" ]; then
+                echo "パーティションの作成を行います"
+            else 
+                echo "インストールを終了します。"
+                exit 1
+            fi
+        else
+            echo "パーティションの作成を行います"
+        fi
+    else 
+        echo "インストールを終了します。"
         exit 1
     fi
 }
 
 create_partition() {
-    local available_disks
-    available_disks=$(lsblk -d -o NAME,SIZE -n | awk '{print $1}')
-    PS3="Please select a disk"
-    select disk in $available_disks; do
-        if [ -n "$disk" ]; then
-            echo "Selected disk: $disk"
-            break
-        else
-            echo "Invalid selection. Please select again."
-        fi
-    done
-    sgdisk -Z /dev/$disk
-    sgdisk -o /dev/$disk
-    sgdisk -n 1::+1024M -t 1:ef02 /dev/$disk
-    sgdisk -n 2:: -t 2:8300 /dev/$disk
+    echo "パーティションを作成しています..."
+    sgdisk -Z /dev/$selected_disk
+    sgdisk -o /dev/$selected_disk
+    sgdisk -n 1::+1024M -t 1:ef02 /dev/$selected_disk
+    sgdisk -n 2:: -t 2:8300 /dev/$selected_disk
 
-    if [[ "$disk" == nvme* ]]; then
-        mkfs.vfat -F 32 /dev/${disk}p1
-        mkfs.btrfs -f /dev/${disk}p2
-        efi_partition_device="/dev/${disk}p1"
-        root_partition_device="/dev/${disk}p2"
+    if [[ "$selected_disk" == nvme* ]]; then
+        mkfs.vfat -F 32 /dev/${dselected_diskisk}p1
+        mkfs.btrfs -f /dev/${selected_disk}p2
+        efi_partition_device="/dev/${selected_disk}p1"
+        root_partition_device="/dev/${selected_disk}p2"
     else
-        mkfs.vfat -F 32 /dev/${disk}1
-        mkfs.btrfs -f /dev/${disk}2
-        efi_partition_device="/dev/${disk}1"
-        root_partition_device="/dev/${disk}2"
+        mkfs.vfat -F 32 /dev/${selected_disk}1
+        mkfs.btrfs -f /dev/${selected_disk}2
+        efi_partition_device="/dev/${selected_disk}1"
+        root_partition_device="/dev/${selected_disk}2"
     fi
-}
 
-# Mount partitions
-mount_partitions() {
-    echo "Create mount points..."
-    mkdir -p /mnt/gentoo
-    echo "Mounting root partition..."
-    mount "$root_partition_device" /mnt/gentoo
-
-    echo "Creating mount points for EFI system partition"
-    mkdir -p /mnt/gentoo/efi
-    echo "Mounting EFI system partition..."
-    mount "$efi_partition_device" /mnt/gentoo/efi
-
-    # これはどうする？
-    if [ "$create_home_on_separate_disk" == "y" ]; then
-        echo "Creating mount points for home partition"
-        mkdir -p /mnt/gentoo/home
-        echo "Mounting home partition..."
-        if [ "$disk_type" == "nvme" ]; then
-            home_partition="/dev/${home_disk}n${home_partition_number}p${home_partition_suffix}"
+    # /homeを別ディスクにするかの確認
+    if [ "$selected_home_divide" = "y" ]; then
+        sgdisk -Z /dev/$selected_home_disk
+        sgdisk -o /dev/$selected_home_disk
+        sgdisk -n 1:: -t 1:8300 /dev/$selected_home_disk
+        mkfs.btrfs -f /dev/${selected_home_disk}1
+        if [[ "$selected_disk" == nvme* ]]; then
+            mkfs.btrfs -f /dev/${selected_disk}p1
         else
-            home_partition="/dev/${home_disk}${home_partition_number}${home_partition_suffix}"
+            mkfs.btrfs -f /dev/${selected_disk}1
         fi
-        mount "$home_partition" /mnt/gentoo/home
     fi
-
-    echo "Mounting completed."
-    mv './chroot_script.sh' '/mnt/gentoo/chroot_script.sh'
 }
 
-# Execute script in chroot
-chroot_script() {
-    # Copy the chroot script to the /mnt/gentoo directory
-    cp chroot_script.sh /mnt/gentoo/chroot_script.sh
-
-    # Run the script inside the chroot
-    chroot /mnt/gentoo /bin/bash /chroot_script.sh
-    rm /mnt/gentoo/chroot_script.sh
+# 作業ディレクトリを作成する
+create_work_directory() {
+    echo "作業ディレクトリを作成しています..."
+    if ! mkdir -p ${work_dir}; then
+        echo "Failed to create work directory. Exiting."
+        exit 1
+    fi
 }
 
 download_stage3_tarball() {
-    cd /mnt/gentoo
     if [ "$mode" == "server" ]; then
-        wget -O index.html https://ftp.jaist.ac.jp/pub/Linux/Gentoo/releases/amd64/autobuilds/current-stage3-amd64-nomultilib-systemd-mergedusr/
-
-        tarball_name=$(grep -o 'stage3-amd64-nomultilib-systemd-mergedusr-[0-9]\+T[0-9]\+Z.tar.xz' index.html | grep -v '.asc' | tail -n 1)
+        wget -O index.html https://ftp.jaist.ac.jp/pub/Linux/Gentoo/releases/amd64/autobuilds/current-stage3-amd64-systemd-mergedusr/
+        tarball_name=$(grep -o 'stage3-amd64-systemd-mergedusr-[0-9]\+T[0-9]\+Z.tar.xz' index.html | grep -v '.asc' | tail -n 1)
         rm index.html
-        wget https://ftp.jaist.ac.jp/pub/Linux/Gentoo/releases/amd64/autobuilds/current-stage3-amd64-nomultilib-systemd-mergedusr/$tarball_name
+        wget https://ftp.jaist.ac.jp/pub/Linux/Gentoo/releases/amd64/autobuilds/current-stage3-amd64-systemd-mergedusr/$tarball_name
+        mv $tarball_name ${work_dir}
+        cd ${work_dir}
         tar xpvf $tarball_name --xattrs-include='*.*' --numeric-owner
-        rm $tarball_name
+        cd -
     elif [ "$mode" == "desktop" ]; then
-        echo "Not implemented yet."
-        exit 1
-    else
-        echo "Invalid mode."
-        exit 1
+        wget -O index.html https://ftp.jaist.ac.jp/pub/Linux/Gentoo/releases/amd64/autobuilds/current-stage3-amd64-desktop-systemd-mergedusr/
+        tarball_name=$(grep -o 'stage3-amd64-desktop-systemd-mergedusr-[0-9]\+T[0-9]\+Z.tar.xz' index.html | grep -v '.asc' | tail -n 1)
+        rm index.html
+        wget https://ftp.jaist.ac.jp/pub/Linux/Gentoo/releases/amd64/autobuilds/current-stage3-amd64-desktop-systemd-mergedusr/$tarball_name
+        mv $tarball_name ${work_dir}
+        cd ${work_dir}
+        tar xpvf $tarball_name --xattrs-include='*.*' --numeric-owner
+        cd -
     fi
 }
 
-# Merge make.conf
-merge_make_conf() {
-    local base_conf="~/gentoo_install/make.conf.base"
-    local mode_conf="~/gentoo_install/make.conf.${mode}"
+generate_make_conf() {
+    local base_conf="make.conf.base"
+    local mode_conf="make.conf.${mode}"
 
-    # Check if base make.conf exists
     if [ ! -e "$base_conf" ]; then
         echo "Error: $base_conf not found."
         exit 1
     fi
 
-    # Check if mode make.conf exists
     if [ ! -e "$mode_conf" ]; then
         echo "Error: $mode_conf not found."
         exit 1
     fi
 
-    # Create merged make.conf
     cat "$base_conf" "$mode_conf" > merged_make.conf
 
-    # Copy to /mnt/gentoo
-    cp merged_make.conf /mnt/gentoo/etc/portage/make.conf
+    cp merged_make.conf $work_dir/etc/portage/make.conf
 
-    # Remove temporary file
     rm merged_make.conf
 }
 
-umount_partitions() {
-    echo "Unmounting partitions..."
-    umount -R /mnt/gentoo
-    echo "Unmounting completed."
+prepare_chroot(){
+    mkdir --parents $work_dir/etc/portage/repos.conf
+    cp $work_dir/usr/share/portage/config/repos.conf $work_dir/etc/portage/repos.conf/gentoo.conf
+    cp --dereference /etc/resolv.conf $work_dir/etc/
+    mount --types proc /proc $work_dir/proc 
+    mount --rbind /sys $work_dir/sys 
+    mount --make-rslave $work_dir/sys 
+    mount --rbind /dev $work_dir/dev 
+    mount --make-rslave $work_dir/dev 
+    mount --bind /run $work_dir/run 
+    mount --make-slave $work_dir/run 
+    test -L /dev/shm && rm /dev/shm && mkdir /dev/shm 
+    mount --types tmpfs --options nosuid,nodev,noexec shm /dev/shm 
+    chmod 1777 /dev/shm /run/shm
 }
 
-# Mode selection
-select_mode
+chroot_with_script() {
+    cp chroot_script.sh $work_dir
+    chroot $work_dir /bin/bash chroot_script.sh
+}
 
-# Disk selection
-select_disk
+umount_all() {
+    echo "Unmounting all partitions..."
+    umount -l $work_dir/dev{/shm,/pts,}
+    umount -R $work_dir
+}
 
-create_partition
-
-# Check if /home partition should be created on a separate disk
-read -p "Do you want to create a /home partition on a separate disk? (y/n): " create_home_on_separate_disk
-if [ "$create_home_on_separate_disk" == "y" ]; then
-    create_home_partition
-fi
-
-# Mount partitions
-mount_partitions
-
-download_stage3_tarball
-
-# Copy make.conf to /mnt/gentoo
-merge_make_conf
-
-# Execute script in chroot
-chroot_script
-
-# Post-installation
-echo "Installation completed."
-
-# Unmount partitions
-umount_partitions
-# Prompt user to reboot
+reboot() {
 read -p "Installation completed. Do you want to reboot? (y/n): " reboot_choice
 if [ "$reboot_choice" == "y" ]; then
     echo "Rebooting system..."
@@ -207,3 +181,16 @@ if [ "$reboot_choice" == "y" ]; then
 else
     echo "Exiting without rebooting."
 fi
+}
+
+select_target_machine
+select_target_disk
+consent_disk_partition
+create_partition
+create_work_directory
+download_stage3_tarball
+generate_make_conf
+prepare_chroot
+chroot_with_script
+umount_all
+reboot
