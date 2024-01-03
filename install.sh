@@ -155,7 +155,10 @@ prepare_chroot(){
     mount --make-slave $work_dir/run 
     test -L /dev/shm && rm /dev/shm && mkdir /dev/shm 
     mount --types tmpfs --options nosuid,nodev,noexec shm /dev/shm 
-    chmod 1777 /dev/shm /run/shm
+    # /run/shmが存在する場合は以下を実行
+    if [ -L /run/shm ]; then
+        chmod 1777 /dev/shm /run/shm
+    fi
 }
 
 chroot_with_script() {
