@@ -69,7 +69,7 @@ create_partition() {
     sgdisk -n 2:: -t 2:8300 /dev/$selected_disk
 
     if [[ "$selected_disk" == nvme* ]]; then
-        mkfs.vfat -F 32 /dev/${selected_diskisk}p1
+        mkfs.vfat -F 32 /dev/${selected_disk}p1
         mkfs.btrfs -f /dev/${selected_disk}p2
     else
         mkfs.vfat -F 32 /dev/${selected_disk}1
