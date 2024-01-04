@@ -2,7 +2,16 @@
 
 set -e
 
-work_dir="mnt/gentoo"
+set_working_directory() {
+    # どのディレクトリで作業するか入力させる
+    read -p "作業ディレクトリを入力してください: " work_dir
+    if [ -n "$work_dir" ]; then
+        echo "作業ディレクトリ: $work_dir を作成します。"
+        mkdir -p $work_dir
+    else
+        echo "無効な選択です。再度選択してください。"
+    fi
+}
 
 #インストールするマシンがサーバかデスクトップかを選択
 select_target_machine(){
@@ -76,7 +85,7 @@ create_partition() {
         mkfs.btrfs -f /dev/${selected_disk}2
     fi
 
-    # /homeを別ディスクにするかの確認
+    # /homeを別ディスクにする場合、それも作成する
     if [ "$selected_home_divide" = "y" ]; then
         sgdisk -Z /dev/$selected_home_disk
         sgdisk -o /dev/$selected_home_disk
@@ -181,6 +190,7 @@ else
 fi
 }
 
+set_working_directory
 select_target_machine
 select_target_disk
 consent_disk_partition
