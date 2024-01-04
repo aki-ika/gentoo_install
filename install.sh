@@ -135,8 +135,7 @@ generate_make_conf() {
         exit 1
     fi
 
-    cat "$base_conf" "$mode_conf" > merged_make.conf
-
+    cat "$base_conf" <(echo) "$mode_conf" > merged_make.conf
     cp merged_make.conf $work_dir/etc/portage/make.conf
 
     rm merged_make.conf
