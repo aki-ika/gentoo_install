@@ -124,6 +124,7 @@ mount_disk_to_work_directory() {
     if [ "$selected_home_divide" = "y" ]; then
         mkdir ${work_dir}/home
         mount /dev/${selected_home_disk}1 ${work_dir}/home
+    fi
 }
 
 download_stage3_tarball() {
