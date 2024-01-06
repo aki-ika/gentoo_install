@@ -108,6 +108,24 @@ create_work_directory() {
     fi
 }
 
+mount_disk_to_work_directory() {
+    echo "ディスクをマウントしています..."
+    if [[ "$selected_disk" == nvme* ]]; then
+        mount /dev/${selected_disk}p2 ${work_dir}
+        mkdir ${work_dir}/efi
+        mount /dev/${selected_disk}p1 ${work_dir}/efi
+    else
+        mount /dev/${selected_disk}2 ${work_dir}
+        mkdir ${work_dir}/efi
+        mount /dev/${selected_disk}1 ${work_dir}/efi
+    fi
+
+    # /homeを別ディスクにする場合、それもマウントする
+    if [ "$selected_home_divide" = "y" ]; then
+        mkdir ${work_dir}/home
+        mount /dev/${selected_home_disk}1 ${work_dir}/home
+}
+
 download_stage3_tarball() {
     if [ "$mode" == "server" ]; then
         wget -O index.html https://ftp.jaist.ac.jp/pub/Linux/Gentoo/releases/amd64/autobuilds/current-stage3-amd64-systemd-mergedusr/

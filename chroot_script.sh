@@ -21,17 +21,18 @@ sync_repositories() {
 }
 
 select_profile() {
-    echo "有効なプロファイルのリストを取得しています..."
-    profile_list=$(eselect profile list)
-    PS3="プロファイルを選択してください: "
-    select selected_profile in $profile_list; do
-        if [ -n "$selected_profile" ]; then
-            echo "選択されたプロファイル: $selected_profile"
-            break
-        else
-            echo "無効な選択です。再度選択してください。"
+    eselect profile list
+    echo "プロファイルを選択してください..."
+    read -p "プロファイルを選択してください: " profile_number
+    if [ -n "$profile_number" ]; then
+        echo "選択されたプロファイル: $profile_number"
+        if ! eselect profile set "$profile_number"; then
+            echo "Failed to set profile. Exiting."
+            exit 1
         fi
-    done
+    else
+        echo "無効な選択です。再度選択してください。"
+    fi
 }
 
 update_world() {
@@ -101,7 +102,7 @@ install_linux_firmware() {
 
 install_kernel() {
     echo "カーネルをインストールしています..."
-    emerge --prune sys-kernel/gentoo-kernel sys-kernel/gentoo-kernel-bin
+    emerge --ask sys-kernel/gentoo-kernel-bin
 }
 
 crate_fstab () {
@@ -138,7 +139,6 @@ install_bootloader() {
 }
 
 create_user() {
-    echo "ユーザ名を入力してください..."
     read -p "ユーザ名を入力してください: " username
     useradd -m -G users,wheel,audio,video,input "$username"
     passwd "$username"
