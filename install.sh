@@ -108,7 +108,7 @@ create_work_directory() {
     fi
 }
 
-mount_disk_to_work_directory() {
+mount_disk_to_wor_kdirectory() {
     echo "ディスクをマウントしています..."
     if [[ "$selected_disk" == nvme* ]]; then
         mount /dev/${selected_disk}p2 ${work_dir}
@@ -215,6 +215,7 @@ select_target_disk
 consent_disk_partition
 create_partition
 create_work_directory
+mount_disk_to_wor_kdirectory
 download_stage3_tarball
 generate_make_conf
 prepare_chroot
